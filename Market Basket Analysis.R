@@ -1,3 +1,5 @@
+# hola hola
+
 # PLAN OF ATTACK STEP 2: INSTALL, UPLOAD AND GET TO KNOW YOUR DATA SET
 
 library(arules)
