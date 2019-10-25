@@ -1,0 +1,23 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1572009805723.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "2075592976",
+    "id" : "46B296FD",
+    "lastKnownWriteTime" : 1572006256,
+    "last_content_update" : 1572006256,
+    "path" : "~/market basket analysis/Market Basket Analysis.R",
+    "project_path" : "Market Basket Analysis.R",
+    "properties" : {
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}
