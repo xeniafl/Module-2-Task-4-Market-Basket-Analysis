@@ -1,0 +1,240 @@
+---
+title: "Market Basket Analysis Report"
+output: 
+  html_document:
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, warning = FALSE, error = FALSE, message = FALSE)
+```
+
+## Executive Summary
+
+In this task, Danielle asked us to investigate Electronidex’s last month sales data in order to determine whether Blackwell Electronics should acquire it or not. Our conclusion is that **Blackwell should consider acquiring Electronidex**, due to the following reasons extracted from the data given:
+
+* Even if it's a small company, Electronidex possesses **2 client categories** that account for 60% of last month transactions count and who are very good performers:
+
+  + **B2B clients**: Blackwell doesn't have this client category currently, and they are heavy buyers of PCs, the category with the biggest margins within Blackwell
+
+  + **Gamers**: they do not only buy categories with the biggest margins (PCs and Display), but are also likely to become buyers of Blackwell’s current top performer category inexistent for Electronidex, Game Consoles
+
+## Technical appendix
+
+### Data understanding
+
+To tackle this task, our first step was to see the magnitude of the companies we were considering:
+
+```{r}
+library(arules)
+library(ggplot2)
+library(readr)
+
+Blackwell <- read_csv("C:/Users/user/Downloads/existingproductattributes2017.csv")
+
+Electronidex.tr <- 
+  read.transactions("C:/Users/user/Downloads/ElectronidexTransactions2017.csv", sep = ",")
+
+ProductTypeKey <-
+  read_delim("~/producttypekey_Blackwell product types.csv", ";")
+```
+
+```{r}
+comparison <- data.frame("company" = c("Blackwell", "Electronidex"), 
+                         "volume" = c(sum(Blackwell$Volume), length(Electronidex.tr)))
+
+ggplot(comparison, aes(x = company, y = volume, fill = company)) + geom_col()
+```
+
+Looking at last month’s volume for both companies we get a clearer idea: Blackwell is 5,7 times bigger than Electronidex. This tells us that we would mostly benefit from their product range, online retail value chain, and know-how, and in a second place from volume (if both companies were merged for last month’s sales, Blackwell sales volume would increase +17%).
+
+If we look deeper into Product Category, Blackwell would be interested in increasing their sales of PC, Display and Laptops, the top 3 categories with the highest margin in $ per product:
+
+```{r}
+Blackwell$ProductProfit <- (Blackwell$Price * Blackwell$ProfitMargin)
+ggplot(Blackwell, aes(x = ProductType, y = ProductProfit, fill = ProductType)) + geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+If we look at Blackwell’s current sales, these are not the top seller categories in volume, but they are for Electronidex, who sells more units than Blackwell even with a lower number of transactions:
+
+```{r}
+
+volume <- sort(itemFrequency(Electronidex.tr, type = "absolute"), decreasing = T)
+
+Electronidex <- as.data.frame(volume)
+Electronidex$'product name' <- row.names(Electronidex)
+
+Electronidex_wProducttype <- merge(Electronidex, ProductTypeKey)
+Electronidex_wProducttype <- Electronidex_wProducttype[,(c(3, 1, 2))]
+colnames(Electronidex_wProducttype) <- c("ProductType", "ProductName", "Volume")
+
+
+Blackwell$Company <- rep("Blackwell", 80)
+Electronidex_wProducttype$Company <- rep("Electronidex", 125)
+
+
+ggplot() +
+  geom_col(data = Electronidex_wProducttype, aes(x = ProductType, y = Volume, fill = ProductType)) +
+  geom_col(data = Blackwell, aes(x = ProductType, y = Volume, fill = ProductType)) +
+  facet_grid(Company~.) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+Now we understand the 2 companies together and what we want out of Electronidex, we will have a look at the company's transactions to get further information.
+
+```{r}
+library(arules)
+library(arulesViz)
+library(readr)
+library(reshape2)
+
+tr <-
+  read.transactions("C:/Users/user/Downloads/ElectronidexTransactions2017.csv", sep = ",")
+```
+
+Our first step will be to understand the data: we have been given data for a month of Electronidex online sales (9835 transactions). Electronidex has a range of 125 products, and this are the top 15:
+
+```{r}
+itemFrequencyPlot(tr, type = "absolute", topN = 15, horiz = F)
+```
+
+When it comes to transactions, we can see that we have very big purchases (half of the purchases include **more than 4 products**, which is not usual for individual customers). We can already think we will have 2 client types: B2B and B2C.
+
+```{r}
+itemsbought <- sort(size(tr), decreasing = T)
+table(itemsbought)
+summary(itemsbought)
+hist(itemsbought, breaks = 30)
+```
+
+As a 2nd check, we look at the rules this dataset would give us, and we already see that 6 out of our top 8 rules imply buying **2 computers together**, which is definetly not common for individual customers.
+
+```{r}
+RulesName<- apriori (tr, parameter = list(supp = 0.05, conf = 0.1, minlen = 2))
+inspect(sort(RulesName, by = "support"))
+```
+
+### Pre processing
+
+After realizing this, we'll have to first split the dataset in B2B = more than 4 products, B2C = 4 products or less:
+
+```{r}
+tr.df <- 
+  read_csv("C:/Users/user/Downloads/ElectronidexTransactions2017.csv", col_names = FALSE)
+
+tr.df$itemsbought <- (32-rowSums(is.na(tr.df)))
+```
+
+and we'll include laptop and desktop information for the split:
+
+```{r}
+product_key <-
+  read_delim("~/producttypekey.csv", ";", escape_double = FALSE, trim_ws = TRUE)
+
+desktop_or_laptop <- rbind(product_key[(which(product_key == "Desktop")-125),], 
+                           product_key[(which(product_key == "Laptops")-125),])
+
+computercount <- c()
+
+for (i in 1:nrow(tr.df)) {
+  
+  hola <- sum(tr.df[i, ] %in% desktop_or_laptop$`product name`)
+  computercount <- rbind(computercount, hola)
+  
+}
+
+tr.df <- cbind(tr.df, computercount)
+```
+
+However, once we split the datasets we see that some customers that buy more than 4 products are buying gaming products, which is not a common behaviour for a company, and that out of these gaming customers a lot of them buy a computer specific for gaming and a normal one on the same purchase. Therefore, we'll separate them from the normal B2C into a Gaming category, being that the 1st condition for our splitting:
+
+```{r}
+gaming <- c()
+
+for (i in 1:nrow(tr.df)) {
+  
+  hola <- sum(grepl("Gam", tr.df[i, ], ))
+  gaming <- rbind(gaming, hola)
+  
+}
+
+tr.df <- cbind(tr.df, gaming)
+```
+
+```{r}
+tr.df$customer_type <- ifelse(
+  tr.df$gaming > 0, "Gamer", ifelse(
+    tr.df$computercount > 1, "B2B", ifelse(
+        tr.df$itemsbought > 4, "B2B", "B2C"
+    )))
+
+Gamer_transactions <- tr[which(tr.df$customer_type == "Gamer"),]
+B2B_transactions <- tr[which(tr.df$customer_type == "B2B"),]
+B2C_transactions <- tr[which(tr.df$customer_type == "B2C"),]
+
+length (B2B_transactions)
+length (B2C_transactions)
+length (Gamer_transactions)
+```
+
+### Modeling
+
+Now we have the dataset split in B2B, Gamer and B2C we will insepct them again separately. For each dataset we will set the support to number of products / number of transactions, as it is equal to the probability of having one of them alone. We will set confidence to a number low enough to get around 10 rules:
+
+#### B2B
+
+```{r}
+itemsbought <- sort(size(B2B_transactions), decreasing = T)
+table(itemsbought)
+summary(itemsbought)
+hist(itemsbought, breaks = 30)
+
+itemFrequencyPlot(B2B_transactions, type = "absolute", topN = 10, horiz = F)
+
+B2BRulesName<- apriori (B2B_transactions, parameter = list(supp = 0.046, conf = 0.4, minlen = 2))
+```
+
+Looking at the top 3 rules, we can see that out of the B2B transactions a 35% of them bought a computer and an iMac together, and that 31% of them bought a PC and a screen together:
+
+```{r}
+inspect(sort(B2BRulesName, by = "support"))
+```
+
+
+#### Gamer:
+
+```{r}
+itemsbought <- sort(size(Gamer_transactions), decreasing = T)
+table(itemsbought)
+summary(itemsbought)
+hist(itemsbought, breaks = 30)
+itemFrequencyPlot(Gamer_transactions, type = "absolute", topN = 10, horiz = F)
+GamerRulesName<- apriori (Gamer_transactions, parameter = list(supp = 0.05, conf = 0.5, minlen = 2))
+```
+
+From the top rules we can see that 24% of the transactions that included a Cyberpower Gamer Desktop, included another computer as well, and that 14% bought a screen with it:
+
+```{r}
+inspect(sort(GamerRulesName, by = "support"))
+```
+
+#### B2C:
+
+```{r}
+itemsbought <- sort(size(B2C_transactions), decreasing = T)
+table(itemsbought)
+summary(itemsbought)
+hist(itemsbought)
+
+itemFrequencyPlot(B2C_transactions, type = "absolute", topN = 10, horiz = F)
+
+B2CRulesName<- apriori (B2C_transactions, parameter = list(supp = 0.0075, conf = 0.1, minlen = 2))
+
+```
+
+To get rules we needed to lower the support below the probability of finding a product alone. This means we'll get less significant rules, but this could be also due to the subsetting. 
+
+```{r}
+inspect(sort(B2CRulesName, by = "support"))
+```
+
