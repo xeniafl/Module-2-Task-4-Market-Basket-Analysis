@@ -1,9 +1,0 @@
-{
-    "path" : "~/market basket analysis",
-    "sortOrder" : [
-        {
-            "ascending" : true,
-            "columnIndex" : 2
-        }
-    ]
-}
