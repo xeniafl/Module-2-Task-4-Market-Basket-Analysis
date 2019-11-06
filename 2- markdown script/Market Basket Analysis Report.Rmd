@@ -31,10 +31,13 @@ library(arulesViz)
 library(ggplot2)
 library(readr)
 library(reshape2)
+library(rstudioapi)
 
-setwd("C:/Users/user/Documents/M2 T4 market basket analysis/Datasets")
+current_path = getActiveDocumentContext()$path
+setwd(dirname(current_path))
 
-Blackwell <- read_csv("./existingproductattributes2017.csv")
+
+Blackwell <- read_csv("../datasets/existingproductattributes2017.csv")
 
 Electronidex_tr <- 
   read.transactions("./ElectronidexTransactions2017.csv", sep = ",")
